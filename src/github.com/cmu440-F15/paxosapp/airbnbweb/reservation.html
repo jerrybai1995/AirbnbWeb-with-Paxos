@@ -1,0 +1,419 @@
+<script src='http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js'></script>
+<link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+<script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+<script src="https://maps.googleapis.com/maps/api/js"></script>
+<script>
+var map;
+var geocoder;
+function initialize() {
+    var mapCanvas = document.getElementById('map');
+    var mapOptions = {
+      center: new google.maps.LatLng(44.5403, -78.5463),
+      zoom: 14,
+      mapTypeId: google.maps.MapTypeId.ROADMAP
+    }
+    map = new google.maps.Map(mapCanvas, mapOptions)
+}
+
+
+function FindLocation(address) {
+    geocoder = new google.maps.Geocoder();
+    geocoder.geocode({ 'address': address }, function (results, status) {
+        if (status == google.maps.GeocoderStatus.OK) {
+            map.setCenter(results[0].geometry.location);
+            var marker = new google.maps.Marker({
+                map: map,
+                position: results[0].geometry.location
+            });
+
+        }
+        else {
+            alert("Geocode was not successful for the following reason: " + status);
+        }
+    });
+}
+
+(function($) {
+    $.fn.clickToggle = function(func1, func2) {
+        var funcs = [func1, func2];
+        this.data('toggleclicked', 0);
+        this.click(function() {
+            var data = $(this).data();
+            var tc = data.toggleclicked;
+            $.proxy(funcs[tc], this)();
+            data.toggleclicked = (tc + 1) % 2;
+        });
+        return this;
+    };
+}(jQuery));
+
+String.prototype.format = function (args) {
+    var str = this;
+    return str.replace(String.prototype.format.regex, function(item) {
+        var intVal = parseInt(item.substring(1, item.length - 1));
+        var replace;
+        if (intVal >= 0) {
+            replace = args[intVal];
+        } else if (intVal === -1) {
+            replace = "{";
+        } else if (intVal === -2) {
+            replace = "}";
+        } else {
+            replace = "";
+        }
+        return replace;
+    });
+};
+String.prototype.format.regex = new RegExp("{-?[0-9]+}", "g");
+
+$(document).ready(function () { 
+
+    var lastSuccess;
+    var lastFailure;
+
+    function initAndFindGoogleMap(address) {
+        initialize()
+        // FindLocation("5032 Forbes Ave. Pittsburgh PA")
+        FindLocation(address)
+    }
+
+    function appendToCurrent(houseid, addr, host, rating, downtown) {
+        var breakLine = "<br /><br />"
+        if (downtown.trim().length == 0) {
+            breakLine = ""
+        }
+        var raw = "<div class='panel panel-warning' id={0} style='display:none'> <div class='panel-heading'> <h3 class='panel-title'>{1}</h3> </div> \
+                   <div class='panel-body'>Your host: <strong id='yourHost'>{2}</strong>{3} \
+                   <div style='text-align: right'><span class='label label-warning' id='downtownInfo'>{4}</span></div></div> </div>"
+        raw = raw.format([houseid, addr, host, breakLine, downtown])
+        $("#currentReservationPanel").append(raw)
+        $("#" + houseid).fadeIn()
+    }
+
+    function requestPostProcess(data, houseHtml) {
+        var houseid = houseHtml.find("span").html()
+        var addr = houseHtml.find("h4").html()
+        var host = houseHtml.find("#hostInfo").html()
+        var rating = houseHtml.find("#ratingInfo").html()
+        var downtown = houseHtml.find("#downtownInfo").html()
+        
+        if (data == "true") {
+            $("#successRequestNote").slideDown()
+            clearTimeout(lastSuccess)
+            lastSuccess = setTimeout(function() {$("#successRequestNote").slideUp()}, 5000)
+            appendToCurrent(houseid, addr, host, rating, downtown)
+        } else {
+            $("#failedRequestNote").slideDown()
+            clearTimeout(lastFailure)
+            lastFailure = setTimeout(function() {$("#failedRequestNote").slideUp()}, 5000)
+        }
+
+        houseHtml.fadeOut()
+    }
+
+    function registerNewList() {
+        $("[id='moreInfo']").each(function() {
+            $(this).click(function() {
+            // FindLocation(this.parent().find("h4").html())
+                var add = $(this).parent().parent().find("h4").html()
+                setTimeout(function() {initAndFindGoogleMap(add)}, 500)
+            });
+        });
+
+        $("[id='selectThis']").each(function() {
+            // Make an ajax call when clicked
+            var housingId = $(this).parent().parent().find("span").html()
+            $(this).click(function() {
+                var houseHtml = $(this).parent().parent()
+                $("#loadingModalCaption").html("PROCESSING YOUR REQUEST...")
+                $("#loadingModal").modal('show')
+                $.ajax({
+                    url: '/select',
+                    type: 'POST',
+                    dataType: 'html',
+                    data: { user: $("#hidden1").text(), houseid: housingId },
+                    success: function(data) {
+                        setTimeout(function () { $("#loadingModal").modal('hide'); }, 600);
+                        setTimeout(function() {requestPostProcess(data, houseHtml)}, 600);
+                    },
+                });
+            });
+        });
+    }
+
+    $("#searchLocationButton").click(function() {
+        $("#loadingModalCaption").html("LOADING...")
+        $("#loadingModal").modal('show')
+        $.ajax({
+           url: '/search',
+           type: 'POST',
+           dataType: 'html',
+           data: { metric: $("#searchLocationMetric").val() },
+           success: function(data) {
+             setTimeout(function () { $("#loadingModal").modal('hide'); }, 700);
+             $("#searchLocationResults").html(data);
+             registerNewList()
+           },
+         });
+    });
+
+    $("#addHousingSubmit").click(function() {
+        $("#addHousingModal").modal('hide')
+        var dt = $('input[name="downtown"]:checked', '#addHousingForm').val()
+        $("#loadingModalCaption").html("LOADING...")
+        $("#loadingModal").modal('show')
+        $.ajax({
+            url: '/addHouse',
+            type: 'POST',
+            dataType: 'html',
+            data: { owner: $("#addHousingHostName").val(), addr: $("#addHousingAddress").val(), city: $("#addHousingCity").val(), zip: $("#addHousingZip").val(), rating: $("#addHousingRating").val(), downtown: dt, price: $("#addHousingPrice").val() },
+            success: function(data) {
+                $("#addHousingForm")[0].reset()
+                $("#loadingModalCaption").html("SUCCESS!!")
+                setTimeout(function () { $("#loadingModal").modal('hide'); }, 500);
+            },
+        });
+    });
+
+    $.ajax({
+        url: '/getReservation',
+        type: 'POST',
+        dataType: 'html',
+        data: { userid: $("#hidden1").text() },
+        success: function(data) {
+            $("#currentReservationPanel").append(data)
+        },
+    });
+});
+</script>
+<style>
+body {
+    background-color: white; /*rgba(255, 126, 130, 0.68);*/
+}
+
+.bnb {
+    font-family: Circular, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+.bg {
+    content: "";
+    background: url("http://xdesktopwallpapers.com/wp-content/uploads/2014/01/This-Scene-Can-Only-Be-Find-In-Glacier-National-Park.jpg");
+    opacity: 0.4;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    position: absolute;
+    z-index: -1;   
+}
+
+.bs-callout {
+    padding: 20px;
+    margin: 20px 0;
+    border: 1px solid #eee;
+    border-left-width: 5px;
+    border-radius: 3px;
+    background-color: rgba(226, 222, 222, 0.79);
+}
+.bs-callout h4 {
+    margin-top: 0;
+    margin-bottom: 5px;
+}
+.bs-callout p:last-child {
+    margin-bottom: 0;
+}
+.bs-callout code {
+    border-radius: 3px;
+}
+.bs-callout+.bs-callout {
+    margin-top: -5px;
+}
+.bs-callout-default {
+    border-left-color: #777;
+}
+.bs-callout-default h4 {
+    color: #777;
+}
+.bs-callout-primary {
+    border-left-color: #428bca;
+}
+.bs-callout-primary h4 {
+    color: #428bca;
+}
+.bs-callout-success {
+    border-left-color: #5cb85c;
+}
+.bs-callout-success h4 {
+    color: #5cb85c;
+}
+.bs-callout-danger {
+    border-left-color: #d9534f;
+}
+.bs-callout-danger h4 {
+    color: #d9534f;
+}
+.bs-callout-warning {
+    border-left-color: #f0ad4e;
+}
+.bs-callout-warning h4 {
+    color: #f0ad4e;
+}
+.bs-callout-info {
+    border-left-color: #5bc0de;
+}
+.bs-callout-info h4 {
+    color: #5bc0de;
+}
+
+#map {
+    width: 400px;
+    height: 320px;
+}
+</style>
+<div class="bg"></div>
+<div style="text-align: center">
+	<h1 class="bnb">{{.Title}}</h1>
+    <button class="btn btn-success" data-toggle="modal" data-target="#addHousingModal"><span class="glyphicon glyphicon-plus"></span>Want to be a host?</button>
+    <div class="alert alert-success" role="alert" id="successRequestNote" style="display: none">
+      <span class="glyphicon glyphicon-glyphicon glyphicon-thumbs-up" aria-hidden="true"></span>
+      <span class="sr-only">Success:</span>
+      Your reservation request has been placed. You can now view it.
+    </div>
+    <div class="alert alert-danger" role="alert" id="failedRequestNote" style="display: none">
+      <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
+      <span class="sr-only">Failure:</span>
+      Sorry, your reservation request failed. Some others booked it just ahead of you :(
+    </div>
+    <p id="hidden1" style="display: none">{{.Hidden1}}</p>
+    <br />
+</div>
+
+<div class="row">
+    <!-- Search Reservation -->
+    <div class="col-md-offset-1 col-md-4">
+    <div class="bnb" style="text-align: center">
+        <h3><strong>Search for accommodation</strong></h3>
+    </div>
+    <br />
+
+
+    <!-- ALERT PART -->
+    <div class="alert alert-success" role="alert" style="display: none">
+      <span class="glyphicon glyphicon-home" aria-hidden="true"></span>
+      <span class="sr-only">Note:</span>
+      You already had a reservation in our system :)
+    </div>
+
+    <div class="alert alert-info" role="alert">
+      <span class="glyphicon glyphicon-exclamation-sign" aria-hidden="true"></span>
+      <span class="sr-only">Note:</span>
+      You do not have a reservation on file yet. Let's make one :P
+    </div>
+    <!-- ALER PART ENDS -->
+
+    <br />
+
+    <div class="row">
+        <div class="col-md-offset-1 col-md-10">
+            <strong><span class="glyphicon glyphicon-search" aria-hidden="true"></span> &nbsp; Search now (city, zip, etc.)</strong>
+            <div class="input-group">
+              <input type="text" id="searchLocationMetric" class="form-control" placeholder="Search for...">
+              <span class="input-group-btn">
+                <button class="btn btn-default" id="searchLocationButton" type="button">Go!</button>
+              </span>
+            </div>
+        </div>
+    </div>
+    <br />
+    <div id="searchLocationResults"></div>
+    </div>
+
+    <!-- Current Reservations -->
+    <div class="col-md-offset-2 col-md-4" id="currentReservationList">
+    <div class="bnb" style="text-align: center">
+        <h3><strong>Your current reservations</strong></h3>
+    </div>
+    <br />
+    <div id="currentReservationPanel"></div>
+    </div>
+</div>
+
+<div class="modal modal-static fade" id="loadingModal" data-backdrop="static" data-keyboard="false" role="dialog" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-body" style="text-align: center">
+        <img src="http://bestanimations.com/Science/Gears/loadinggears/loading-gears-animation-3.gif">
+        <p><strong id="loadingModalCaption" style="font-size: 16px">LOADING...</strong></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="gmapModal" tabindex="-1" role="dialog" aria-labelledby="googleMapModal">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title" id="gmapModalLabel">Details about this location</h4>
+      </div>
+      <div class="modal-body">
+        <strong>Map & direction:</strong>
+        <div id="map" style="margin-left: 90px"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="addHousingModal" tabindex="-1" role="dialog" aria-labelledby="addHousingModalLabel">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title" id="exampleModalLabel">Add your housing and be a host!</h4>
+      </div>
+      <div class="modal-body">
+        <form id="addHousingForm">
+          <div class="form-group">
+            <label for="owner-name" class="control-label">Host name:</label>
+            <input type="text" class="form-control" id="addHousingHostName" maxlength="30" placeholder="Name of the host">
+          </div>
+          <div class="form-group">
+            <label for="address" class="control-label">Address:</label>
+            <input type="text" class="form-control" id="addHousingAddress" placeholder="Street address, apartment number, etc.">
+          </div>
+          <div class="form-group">
+            <label for="city" class="control-label">City:</label>
+            <input type="text" class="form-control" id="addHousingCity" placeholder="Which city is this location in?">
+          </div>
+          <div class="form-group">
+            <label for="zip" class="control-label">Zip:</label>
+            <input type="text" class="form-control" id="addHousingZip" placeholder="Zip code of your place">
+          </div>
+          <div class="form-group">
+            <label for="rating" class="control-label">Rating:</label>
+            <input type="text" class="form-control" min="0" max="5" id="addHousingRating" placeholder="Rate your place, out of 5 :)">
+          </div>
+          <div class="form-group">
+            <label for="downtown" class="control-label">Downtown:</label>
+            <br />
+            <input type="radio" class="" name="downtown" value="Yes" checked="checked"> Yes
+            <br />
+            <input type="radio" class="" name="downtown" value="No"> No
+          </div>
+          <div class="form-group">
+            <label for="price" class="control-label">Price:</label>
+            <input type="number" class="form-control" min="1" id="addHousingPrice" placeholder="Please input your desired price">
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" id="addHousingSubmit">Submit</button>
+      </div>
+    </div>
+  </div>
+</div>

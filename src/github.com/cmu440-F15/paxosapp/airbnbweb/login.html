@@ -1,0 +1,96 @@
+<script src='http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js'></script>
+<link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+<script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+<script>
+(function($) {
+    $.fn.clickToggle = function(func1, func2) {
+        var funcs = [func1, func2];
+        this.data('toggleclicked', 0);
+        this.click(function() {
+            var data = $(this).data();
+            var tc = data.toggleclicked;
+            $.proxy(funcs[tc], this)();
+            data.toggleclicked = (tc + 1) % 2;
+        });
+        return this;
+    };
+}(jQuery));
+
+$(document).ready(function () { 
+	function disableLogin() {
+		$("#userName input").attr('disabled', true)
+		$("#passW input").attr('disabled', true)
+		$("#submitLogin").attr('disabled', true)
+	}
+
+	function enableLogin() {
+		$("#userName input").attr('disabled', false)
+		$("#passW input").attr('disabled', false)
+		$("#submitLogin").attr('disabled', false)
+	}
+
+	function startRegister() {
+		disableLogin()
+		$("#registerForm").slideDown()
+		$("#registerButton").html("No, I have an account")
+	}
+
+	function cancelRegister() {
+		enableLogin()
+		$("#registerForm").slideUp()
+		$("#registerButton").html("New user")
+	}
+
+	$("#registerButton").clickToggle(startRegister, cancelRegister);
+
+});
+</script>
+<style>
+.bnb {
+    font-family: Circular, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+body { }
+
+.bg {
+	content: "";
+	background: url("http://cdn.bigbangfish.com/beautiful/beautiful-scenes/beautiful-scenes-7.jpg");
+	opacity: 0.4;
+	top: 0;
+	left: 0;
+	bottom: 0;
+	right: 0;
+	position: absolute;
+	z-index: -1;   
+}
+</style>
+<div class="bg"></div>
+<div style="text-align: center">
+	<h1 class="bnb">{{.Title}}</h1>
+	<br />
+	<p style="color: red">{{.State}}</p>
+	<br />
+	<form action="/login" method="POST" id="loginForm">
+		<div id="userName">Username: <input type="text" name="user"></div>
+		<br />
+		<div id="passW">Password: <input type="password" name="pass" style="margin-left: 5px"></div>
+		<br />
+		<div class="row">
+		<div class="col-md-offset-5 col-md-2">
+		<input type="submit" value="Log in" class="btn btn-warning" id="submitLogin">
+		</div>
+		</div>
+		<br />
+		<a href="#" id="registerButton">New user</a>
+	</form>
+
+	<form action="/register" method="POST" style="display:none; margin-top: 30px" id="registerForm">
+		<div id="userNameRegister">Username: <input type="text" name="user" placeholder="New Airbnb username"></div>
+		<br />
+		<div id="passWRegister">Password: <input type="password" name="pass" placeholder="New Airbnb password" style="margin-left: 5px"></div>
+		<br />
+		<div class="col-md-offset-5 col-md-2">
+		<input type="submit" value="Register" class="btn btn-primary" id="submitRegister">
+		</div>
+	</form>
+</div>
