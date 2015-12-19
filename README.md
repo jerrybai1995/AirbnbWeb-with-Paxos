@@ -34,7 +34,7 @@ This project is made up of 4 layers in total:
 
 ### Installation
 
-You don't necessarily need to have Golang installed on your computer (though we recommend it). In **/p3/bin** folder and **/p3/src/github.com/cmu440-F15/paxosapp/airbnbWeb** folders, we already had `.exe` file prepared for you. 
+You don't necessarily need to have Golang installed on your computer (though we recommend it). In **/p3/bin** folder and **/p3/src/github.com/cmu440-F15/paxosapp/airbnbweb** folders, we already had `.exe` file prepared for you. 
 
 You will first need to download our project from GitHub. Then, put it in your local directory where you put your Go, and set your `GOPATH` to this folder by
 
@@ -56,9 +56,9 @@ $ ./arunner
 After the steps above, you should have already had a bunch of Paxos nodes and AirbnbNodes running. Then you may want to open another terminal (or you can run `./arunner &` to run in background), reset your `GOPATH` in a similar fashion, and do
 
 ```sh
-$ cd $GOPATH/src/github.com/cmu440-F15/paxosapp/airbnbWeb
-$ go build airbnbWeb.go
-$ ./airbnbWeb -=port=8080
+$ cd $GOPATH/src/github.com/cmu440-F15/paxosapp/airbnbweb
+$ go build airbnbWebsite.go
+$ ./airbnbWebsite -=port=8080
 ```
 
 In the last step, if you do not specify your own port, it will default to port **":8080"**.
